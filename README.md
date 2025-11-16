@@ -1,4 +1,4 @@
-# AlphaBuffett
+# BuffettBot
 A fine-tuned language model that distills Warren Buffett's investment philosophy through an optimized pipeline: intelligent preprocessing of historical documents, LoRA fine-tuning using [Mistral Small 3](https://mistral.ai/en/news/mistral-small-3) as the base model, and FP8 dynamic quantization for efficient deployment. The model captures both Buffett's deep investment insights and his characteristic communication style from decades of written and spoken wisdom, preserving his unique perspective on business, markets, and long-term value creation.
 
 ## Dataset
