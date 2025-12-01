@@ -82,7 +82,7 @@ Fine-tuning ([`Training.ipynb`](Training.ipynb)) performed using [Unsloth's](htt
 - Epochs: 2
 - Mixed precision: bfloat16
 - Optimizer: AdamW (fused implementation)
-- Train/validation split: 85/15
+- Train/eval split: 85/15
 
 ### Training Strategy
 - **Response-only training**: Loss computed only on assistant responses, not user prompts
