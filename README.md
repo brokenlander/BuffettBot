@@ -1,7 +1,9 @@
 # BuffettBot
-A fine-tuned language model that distills Warren Buffett's investment philosophy through an optimized pipeline: intelligent preprocessing of historical documents, LoRA fine-tuning using [Mistral Small 3](https://mistral.ai/en/news/mistral-small-3) as the base model, and FP8 dynamic quantization for efficient deployment. The model captures both Buffett's deep investment insights and his characteristic communication style from decades of written and spoken wisdom, preserving his unique perspective on business, markets, and long-term value creation.
+
+A fine-tuned language model that distills Warren Buffett's investment philosophy through an optimized pipeline: intelligent preprocessing of historical documents, LoRA fine-tuning using [Qwen3-32B](https://huggingface.co/Qwen/Qwen3-32B) as the base model, and FP8 dynamic quantization for efficient deployment. The model captures both Buffett's deep investment insights and his characteristic communication style from decades of written and spoken wisdom, preserving his unique perspective on business, markets, and long-term value creation.
 
 ## Dataset
+
 The training data draws from three primary sources that capture Buffett's investment philosophy and decision-making process.
 
 ### 1. Berkshire Hathaway Shareholder Letters (1977-2023)
@@ -19,23 +21,26 @@ The training data draws from three primary sources that capture Buffett's invest
 - Provides structured context to Buffett's investment and management philosophy
 
 ## Data Preprocessing
+
 The preprocessing pipeline ([`DataPreprocessing.ipynb`](DataPreprocessing.ipynb)) transforms source materials into high-quality training data while preserving Buffett's unique insights and communication style.
 
 ### Document Processing Strategy
+
 Two optimized chunking strategies are implemented:
 
 #### 1. Numbered Section Strategy
-- Splits text based on numbered Q&A sections (e.g., "1.", "2.") 
+- Splits text based on numbered Q&A sections (e.g., "1.", "2.")
 - Designed for meeting transcripts to preserve dialogue context
-- Splits long sections while maintaining Q&A pairs
+- Splits long sections at sentence midpoints when exceeding max chunk size
 
 #### 2. Sentence Overlap Strategy
 - Uses [spaCy](https://spacy.io/) for sentence-based segmentation with overlap
-- Max chunk: 1600 chars, min: 500 chars, 2-sentence overlap
-- Optimized for narrative documents like letters
+- Max chunk: 3000 chars, min: 800 chars, 2-sentence overlap
+- Optimized for narrative documents like letters and essays
 
 ### Content Processing Pipeline
-The pipeline uses Claude 3.5 Sonnet for sophisticated content processing:
+
+The pipeline uses Claude Sonnet 4.5 (`claude-sonnet-4-5-20250929`) for sophisticated content processing:
 
 #### 1. Content Validation
 Filters content to ensure quality:
@@ -45,51 +50,54 @@ Filters content to ensure quality:
 
 #### 2. Conversation Generation
 Transforms validated content into training pairs:
-- Generates contextual questions about key themes
-- Constructs answers using Buffett's exact words and ideas
-- Maintains his characteristic Q&A style
+- Generates 2 substantive questions per chunk about key themes
+- Constructs detailed answers (400-600 words) using Buffett's characteristic Q&A style
+- Maintains his conversational, accessible speaking voice
 - Outputs in ShareGPT format for training compatibility
-- Maintains source provenance
 
 ## Model Training
+
 Fine-tuning ([`Training.ipynb`](Training.ipynb)) performed using [Unsloth's](https://github.com/unslothai/unsloth) optimized implementation:
 
 ### Base Model
-- [Mistral Small 3](https://mistral.ai/en/news/mistral-small-3) base model (non-instruct version)
-- Chosen over instruct model due to sufficient high-quality training data
+- [Qwen3-32B](https://huggingface.co/Qwen/Qwen3-32B) base model
 - Max sequence length: 8192 tokens
 - Full precision training (no 4-bit quantization)
+- Custom ChatML template without `<think>` tags for direct responses
 
 ### LoRA Configuration
 - Rank: 32
 - Alpha: 32
-- Target modules: attention and feed-forward layers
+- Target modules: `q_proj`, `k_proj`, `v_proj`, `o_proj`, `gate_proj`, `up_proj`, `down_proj`
 - Dropout: 0
+- RSLoRA (Rank-Stabilized LoRA) enabled for improved training stability
 - Gradient checkpointing: enabled with Unsloth optimization
 
 ### Training Parameters
 - Batch size: 2 per device
-- Gradient accumulation: 4 steps
-- Learning rate: 2e-4
+- Gradient accumulation: 4 steps (effective batch size: 8)
+- Learning rate: 1e-4
 - Weight decay: 0.01
-- Scheduler: Linear
-- Epochs: 3
+- Scheduler: Cosine with 5% warmup
+- Epochs: 2
 - Mixed precision: bfloat16
-- Optimizer: AdamW 8-bit
+- Optimizer: AdamW (fused implementation)
+- Train/validation split: 85/15
 
-### Chat Template
-- Using ChatML format for instruction-response pairs
-- Training focused on response generation only, masking instruction tokens to preserve the model's instruction-following capabilities
+### Training Strategy
+- **Response-only training**: Loss computed only on assistant responses, not user prompts
+- This preserves the model's instruction-following capabilities while teaching Buffett's response style
+- Custom chat template uses ChatML format without reasoning tags
 
 ## Model Quantization
+
 Post-training quantization ([`Quantization.ipynb`](Quantization.ipynb)) using [LLM-Compressor](https://github.com/vllm-project/llm-compressor):
 
 ### Quantization Strategy
 - Method: FP8 Dynamic quantization
-- Target: All linear layers except LM head
-- Weight quantization: Static, per-channel
-- Activation quantization: Dynamic, per-token
+- Target: All Linear layers except `lm_head`
 - No calibration data required
+- Single-pass quantization (oneshot)
 
 ### Implementation
 - Applied to LoRA-merged model
@@ -97,6 +105,59 @@ Post-training quantization ([`Quantization.ipynb`](Quantization.ipynb)) using [L
 - Optimized for inference deployment
 - Weights and tokenizer saved in HuggingFace format
 
+## Models
+
 Models available at HuggingFace Hub:
-- Base model: [`brokenlander/AlphaBuffett`](https://huggingface.co/brokenlander/AlphaBuffett)
-- Quantized model: [`brokenlander/AlphaBuffett-FP8-Dynamic`](https://huggingface.co/brokenlander/AlphaBuffett-FP8-Dynamic)
+- Full model: [`andreamoccia/BuffettBot`](https://huggingface.co/andreamoccia/BuffettBot)
+- LoRA adapter: [`andreamoccia/BuffettBot-lora`](https://huggingface.co/andreamoccia/BuffettBot-lora)
+- Quantized model: [`andreamoccia/BuffettBot-FP8-Dynamic`](https://huggingface.co/andreamoccia/BuffettBot-FP8-Dynamic)
+
+## Requirements
+
+### Data Preprocessing
+```
+spacy
+anthropic
+PyMuPDF (fitz)
+```
+
+### Training
+```
+unsloth
+transformers
+trl
+datasets
+torch
+```
+
+### Quantization
+```
+llmcompressor
+transformers
+```
+
+## Usage
+
+### Inference Example
+
+```python
+from transformers import AutoTokenizer, AutoModelForCausalLM
+
+model = AutoModelForCausalLM.from_pretrained(
+    "andreamoccia/BuffettBot",
+    device_map="auto",
+    torch_dtype="auto"
+)
+tokenizer = AutoTokenizer.from_pretrained("andreamoccia/BuffettBot")
+
+messages = [{"role": "user", "content": "What makes a great business?"}]
+prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+
+inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
+outputs = model.generate(**inputs, max_new_tokens=512, temperature=0.85, top_p=0.95)
+print(tokenizer.decode(outputs[0], skip_special_tokens=True))
+```
+
+## License
+
+[Add your license here]
