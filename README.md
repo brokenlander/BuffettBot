@@ -112,28 +112,32 @@ Models available at HuggingFace Hub:
 - LoRA adapter: [`andreamoccia/BuffettBot-lora`](https://huggingface.co/andreamoccia/BuffettBot-lora)
 - Quantized model: [`andreamoccia/BuffettBot-FP8-Dynamic`](https://huggingface.co/andreamoccia/BuffettBot-FP8-Dynamic)
 
-## Requirements
+## Environment Setup
 
-### Data Preprocessing
-```
-spacy
-anthropic
-PyMuPDF (fitz)
+The project uses two separate conda environments due to dependency conflicts.
+
+### Training Environment (Python 3.11)
+
+Used for data preprocessing and model training:
+
+```bash
+conda create -n unsloth python=3.11 -y
+conda activate unsloth
+
+pip install unsloth
+pip install anthropic pymupdf spacy datasets trl peft accelerate huggingface_hub
+python -m spacy download en_core_web_sm
 ```
 
-### Training
-```
-unsloth
-transformers
-trl
-datasets
-torch
-```
+### Quantization Environment (Python 3.12)
 
-### Quantization
-```
-llmcompressor
-transformers
+Used for FP8 quantization:
+
+```bash
+conda create -n llmcompressor python=3.12 -y
+conda activate llmcompressor
+
+pip install llmcompressor huggingface_hub
 ```
 
 ## Usage
@@ -157,7 +161,3 @@ inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
 outputs = model.generate(**inputs, max_new_tokens=512, temperature=0.85, top_p=0.95)
 print(tokenizer.decode(outputs[0], skip_special_tokens=True))
 ```
-
-## License
-
-[Add your license here]
